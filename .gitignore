@@ -1,4 +1,3 @@
-cat > .gitignore << 'EOF'
 # Modelos e checkpoints
 *.nemo
 *.ckpt
@@ -22,6 +21,6 @@ venv/
 .ipynb_checkpoints/
 
 # Saídas
+out/
 outputs/
 *.log
-EOF

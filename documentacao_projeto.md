@@ -179,6 +179,17 @@ def score_lexical(word_ts, duracao_s, janela=1.0, decai_negador=0.5):
     return s   # vetor por janela de 1 s
 ```
 
+> **Correção em relação ao snippet acima (implementada em `src/asr.py`).** O trecho
+> ilustrativo casa cada chave com `normaliza(chave) in w`, ou seja, **substring dentro de
+> um único token**. Isso torna as chaves **multi-palavra** (`"na rede"`, `"que jogada"`)
+> *inalcançáveis*: nenhum token isolado contém um espaço, então elas nunca pontuam. A
+> implementação real separa o léxico em dois conjuntos: chaves de **uma palavra** seguem
+> casando por substring; chaves **multi-palavra** casam por **tokens consecutivos** — para
+> a chave `("na", "rede")`, compara-se a janela `palavras[i:i+2]` com a tupla da chave.
+> Pesos são acumulados por `max`, e o léxico continua normalizado sem acento (logo
+> `golaço`→`golaco`, `pênalti`→`penalti`). Mantenha os pesos versionados em
+> `configs/params.yaml`.
+
 > **Documente o léxico como hiperparâmetro.** Idealmente derive os pesos de uma pequena amostra anotada, não "no olho", e relate a sensibilidade do resultado a eles.
 
 ---
@@ -373,16 +384,20 @@ projeto/
 │   ├── pt/                 # vídeo bruto + anotações manuais (GT)
 │   └── soccernet/          # subset EN + anotações de evento
 ├── src/
+│   ├── common.py           # utilitários: config, normalização, grade de 1 s, seed
 │   ├── preprocess.py       # etapa 0
 │   ├── asr.py              # etapa 1 (transcrição + léxico)
 │   ├── ser.py              # etapa 2 (arousal)
 │   ├── fusion.py           # etapa 3
 │   ├── detect.py           # etapa 4
-│   └── evaluate.py         # etapa 5 (WER/CER, P/R/F1)
+│   ├── evaluate.py         # etapa 5 (WER/CER, P/R/F1)
+│   └── pipeline.py         # orquestra 1→4 + métricas (--mode fusion|asr|ser)
 ├── configs/
 │   └── params.yaml         # léxico, pesos, α/β, k_sigma, janelas
 ├── notebooks/
 │   └── experimentos.ipynb  # E1 e E2 com tabelas/figuras
+├── smoke_test.py           # checklist 1: valida GPU + carga .nemo + timestamps
+├── requirements.txt
 └── README.md
 ```
 
@@ -411,3 +426,136 @@ projeto/
 | SER confunde ruído de torcida com excitação | Suavização; comparar com baseline só-RMS; documentar |
 | n=1 vídeo PT enfraquece estatística | Resultados PT como ilustração; quantitativo forte no SoccerNet |
 | Falsos positivos do léxico ("quase gol") | Regra de negadores; reportar antes/depois da mitigação |
+
+---
+
+## 13. Runbook de execução na 4090 (via SSH)
+
+Sequência completa de comandos, de máquina recém-acessada até resultados. **Tudo o que
+toca o modelo (download de 2,5 GB, transcrição do jogo inteiro) deve rodar dentro de
+`tmux`** para sobreviver a quedas de conexão SSH.
+
+> **Estado atual da validação.** Sintaxe de todos os módulos, validade do YAML e a *lógica
+> pura* (score lexical com negadores → fusão → detecção → métricas P/R/F1) já foram
+> testadas em ambiente sem GPU. **Falta validar na 4090** o que depende de NeMo/librosa/GPU:
+> `asr.py`, `ser.py` e o pipeline real. O portão de entrada é o `smoke_test.py` — se ele
+> passar, o resto do pipeline roda.
+
+### 13.0 Sessão persistente (faça isto primeiro)
+
+```bash
+ssh usuario@maquina-4090
+tmux new -s highlights          # reconectar depois: tmux attach -t highlights
+# (Ctrl+B depois D para destacar sem matar a sessão)
+```
+
+### 13.1 Setup do ambiente (uma vez)
+
+A 4090 é **Ada Lovelace (compute 8.9)** → o PyTorch precisa ser do índice **CUDA 12.x
+(cu121)**; cu11x cai em fallback de CPU ou erro de kernel. Instale o torch **antes** do
+`requirements.txt` para fixar o índice certo.
+
+```bash
+git clone <repo> highlights && cd highlights      # ou cd para o projeto já clonado
+conda create -n highlights python=3.10 -y && conda activate highlights
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+# Verifique a GPU antes de seguir:
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# esperado: True NVIDIA GeForce RTX 4090
+```
+
+### 13.2 Smoke-test (portão obrigatório — checklist §11.1)
+
+Valida GPU + carga do `.nemo` + presença de timestamps de **palavra**. O download do
+checkpoint (~2,5 GB) acontece aqui, na primeira execução.
+
+```bash
+python smoke_test.py                       # tom sintético: só exercita setup + timestamps
+python smoke_test.py --audio amostra.wav   # opcional: com áudio real curto
+```
+
+Critério de aprovação: imprime `GPU: OK | ASR+timestamps: OK` (exit 0). Se aparecer
+`sem 'word'`, os cortes caem para granularidade de **segmento** (plano B da §4.1 — o
+pipeline ainda funciona, com janela de corte menos precisa).
+
+### 13.3 Pré-processamento (etapa 0)
+
+Só é necessário se você parte de vídeo; se já tem um WAV 16 kHz mono, pule.
+
+```bash
+# via módulo (lê sample_rate do config):
+python -m src.preprocess --input jogo_bruto.mp4 --output data/jogo.wav
+# equivalente em ffmpeg puro:
+ffmpeg -i jogo_bruto.mp4 -vn -ac 1 -ar 16000 -sample_fmt s16 data/jogo.wav
+```
+
+### 13.4 Pipeline ponta a ponta
+
+**Depure no SoccerNet (EN, GT pronto) antes do vídeo PT.** O `--events` é opcional: com
+ele, o pipeline já imprime P/R/F1 por tolerância.
+
+```bash
+# SoccerNet (fallback / depuração)
+python -m src.pipeline --audio data/soccernet/jogo.wav \
+    --events data/soccernet/eventos.json --out out/soccernet/
+
+# Vídeo PT (caso principal) — pré-processa o vídeo automaticamente com --video
+python -m src.pipeline --video data/pt/jogo_bruto.mp4 \
+    --events data/pt/eventos.json --out out/pt/
+```
+
+Transcrição do jogo inteiro é a parte longa — mantenha-a no `tmux`. Saídas:
+`out/.../asr.json` (texto + word_ts + s_kw) e `out/.../highlights.json` (score, picos,
+segmentos, métricas).
+
+### 13.5 Estágios isolados (debug)
+
+```bash
+python -m src.asr      --audio data/jogo.wav --out out/asr.json
+python -m src.ser      --audio data/jogo.wav --out out/ser.json
+```
+
+### 13.6 Experimento 2 — ablação da fusão (§9.3)
+
+Mesmo áudio e mesmo detector; só muda `--mode`:
+
+```bash
+python -m src.pipeline --audio data/jogo.wav --events data/eventos.json \
+    --mode asr    --out out/abla_asr/      # β=0  → só léxico
+python -m src.pipeline --audio data/jogo.wav --events data/eventos.json \
+    --mode ser    --out out/abla_ser/      # α=0  → só arousal
+python -m src.pipeline --audio data/jogo.wav --events data/eventos.json \
+    --mode fusion --out out/abla_fusion/   # α,β do params.yaml
+```
+
+Para a **varredura α/β · k_sigma**, edite `configs/params.yaml` (ou copie para
+`configs/params_<exp>.yaml` e passe `--config`) e re-rode `--mode fusion`. Versione cada
+config — é variável de ablação.
+
+### 13.7 Métricas avulsas
+
+```bash
+# Detecção: highlights previstos vs. eventos GT (curva F1×τ)
+python -m src.evaluate --pred out/pt/highlights.json --events data/pt/eventos.json
+
+# ASR (Experimento 1): WER, CER e recall do léxico de domínio
+python -m src.evaluate --ref data/pt/ref.txt --hyp out/pt/hyp.txt
+```
+
+> **Experimento 1 (base vs. fine-tune).** Para a condição C1, troque `asr.model_name` em
+> `configs/params.yaml` para o checkpoint base (`parakeet-tdt-0.6b-v3`), re-rode a
+> transcrição e compare WER/CER/recall-de-léxico contra o fine-tune `...ptBR-plus` (C2)
+> sobre o **mesmo** áudio PT anotado.
+
+### 13.8 Formato dos arquivos de GT
+
+`_load_times` (em `evaluate.py`) aceita o JSON de eventos em qualquer destes formatos:
+
+```jsonc
+[12.0, 45.5, 88.0]                          // lista de segundos
+{"events_s": [12.0, 45.5]}                  // ou "peaks_s" / "events"
+[{"t": 12.0}, {"time": 45.5}, {"start": 88.0}]  // lista de objetos
+```
+
+A referência de ASR (`--ref`) e a hipótese (`--hyp`) são `.txt` simples.
