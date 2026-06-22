@@ -20,11 +20,18 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
 
 
 def normaliza(t: str) -> str:
-    """minúsculas + remoção de acentos (NFD), para casar léxico/negadores."""
+    """minúsculas + remoção de acentos (NFD) e de pontuação, para casar léxico/negadores.
+
+    O checkpoint Parakeet é pontuado, então os tokens vêm com pontuação grudada
+    ('gol,', 'rede!', 'Obrigado.'). Removê-la torna o casamento robusto — em especial
+    o multi-palavra por tokens exatos ('na rede!' → ('na','rede') == chave). Espaços
+    são preservados, pois as chaves multi-palavra do léxico/negadores dependem deles.
+    """
     t = t.lower()
-    return "".join(
+    t = "".join(
         c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn"
     )
+    return "".join(c for c in t if not unicodedata.category(c).startswith("P"))
 
 
 def zscore(x: np.ndarray) -> np.ndarray:

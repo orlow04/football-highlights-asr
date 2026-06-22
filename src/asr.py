@@ -21,12 +21,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import load_config, n_windows, normaliza  # noqa: E402
 
 
-def carregar_modelo(model_name: str, model_file: str | None = None):
+def carregar_modelo(model_name: str, model_file: str | None = None,
+                    local_attn: bool = False,
+                    att_context_size=(128, 128)):
     """Carrega o modelo NeMo.
 
     Com `model_file`, baixa o `.nemo` do repo HF e usa `restore_from` — caminho
     robusto. O `from_pretrained` falha neste repo porque ele empacota o snapshot
     inteiro (hparams.yaml, logs, o .nemo) e a restauração não acha `model_config.yaml`.
+
+    Com `local_attn`, troca a self-attention global (rel_pos, O(T²) em memória) por
+    atenção local de contexto limitado (`rel_pos_local_attn`), tornando a memória
+    LINEAR no tempo. Essencial para áudio longo: a atenção global estoura os 24 GB
+    da 4090 já em poucos minutos de áudio (matrix_ac+matrix_bd é (B,H,T,T)).
     """
     import nemo.collections.asr as nemo_asr
 
@@ -34,8 +41,16 @@ def carregar_modelo(model_name: str, model_file: str | None = None):
         from huggingface_hub import hf_hub_download
 
         caminho = hf_hub_download(model_name, model_file)
-        return nemo_asr.models.ASRModel.restore_from(caminho)
-    return nemo_asr.models.ASRModel.from_pretrained(model_name=model_name)
+        model = nemo_asr.models.ASRModel.restore_from(caminho)
+    else:
+        model = nemo_asr.models.ASRModel.from_pretrained(model_name=model_name)
+
+    if local_attn:
+        model.change_attention_model(
+            self_attention_model="rel_pos_local_attn",
+            att_context_size=list(att_context_size),
+        )
+    return model
 
 
 def _ts_field(item: dict, *names: str):
@@ -118,7 +133,12 @@ def duracao_audio(audio_path: str) -> float:
 def run(audio_path: str, config=None, model=None) -> dict:
     cfg = load_config(config)
     if model is None:
-        model = carregar_modelo(cfg["asr"]["model_name"], cfg["asr"].get("model_file"))
+        acfg = cfg["asr"]
+        model = carregar_modelo(
+            acfg["model_name"], acfg.get("model_file"),
+            local_attn=acfg.get("local_attn", False),
+            att_context_size=acfg.get("att_context_size", (128, 128)),
+        )
     trans = transcrever(model, audio_path)
     dur = duracao_audio(audio_path)
     s_kw = score_lexical(trans["word_ts"], dur, cfg)
