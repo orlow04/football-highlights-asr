@@ -64,14 +64,29 @@ def curva_f1(picos_s, eventos_s, tolerancias) -> list[dict]:
 
 
 def _load_times(path: str):
-    """Aceita JSON: lista de números, ou {peaks_s:[...]}, ou [{t:..}/{time:..}]."""
+    """Aceita JSON em vários formatos:
+      - lista de números: [12.0, 45.5]
+      - dict com chave de tempos: {peaks_s|events_s|events|eventos: [...]}
+      - lista de objetos: [{t|time|start|t_seg: ...}, ...]
+    """
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if isinstance(data, dict):
-        data = data.get("peaks_s") or data.get("events_s") or data.get("events")
+        data = (data.get("peaks_s") or data.get("events_s")
+                or data.get("events") or data.get("eventos"))
+    if data is None:
+        raise ValueError(
+            f"{path}: nenhuma chave de tempos reconhecida "
+            "(esperado peaks_s/events_s/events/eventos).")
     out = []
     for x in data:
-        out.append(float(x) if not isinstance(x, dict)
-                   else float(x.get("t", x.get("time", x.get("start")))))
+        if isinstance(x, dict):
+            v = x.get("t", x.get("time", x.get("start", x.get("t_seg"))))
+            if v is None:
+                raise ValueError(
+                    f"{path}: evento sem campo de tempo (t/time/start/t_seg): {x}")
+            out.append(float(v))
+        else:
+            out.append(float(x))
     return out
 
 

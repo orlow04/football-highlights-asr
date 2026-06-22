@@ -674,8 +674,9 @@ python -m src.evaluate --ref data/pt/ref.txt --hyp out/pt/hyp.txt
 
 ```jsonc
 [12.0, 45.5, 88.0]                          // lista de segundos
-{"events_s": [12.0, 45.5]}                  // ou "peaks_s" / "events"
+{"events_s": [12.0, 45.5]}                  // ou "peaks_s" / "events" / "eventos"
 [{"t": 12.0}, {"time": 45.5}, {"start": 88.0}]  // lista de objetos
+{"eventos": [{"t_seg": 12.0, "tipo": "gol"}]}   // formato PT usado em data/pt/gt_eventos.json
 ```
 
 A referência de ASR (`--ref`) e a hipótese (`--hyp`) são `.txt` simples.
