@@ -70,7 +70,9 @@ def run(audio, out_dir, video=None, events=None, mode="fusion", config=None):
 
     (out / "highlights.json").write_text(
         json.dumps(resultado, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"OK: {out/'highlights.json'} | {len(det['segments'])} highlights")
+    print(f"OK: {out/'highlights.json'} | {len(det['peaks_s'])} picos "
+          f"→ {len(det['segments'])} highlights (segmentos) | "
+          f"métricas avaliadas sobre os picos")
     if "deteccao" in resultado:
         for m in resultado["deteccao"]:
             print(f"  τ={m['tol']:>4}s  P={m['precision']:.2f} "

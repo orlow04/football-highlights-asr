@@ -58,7 +58,7 @@ fusion:
 
 detect:
   k_sigma: 1.5       # limiar = mean + k_sigma*std
-  min_dist_s: 8      # distância mínima entre picos
+  min_dist_s: 12     # distância mínima entre picos (8→12: corta picos-eco do mesmo lance)
   pre_s: 5.0         # janela de corte antes do pico
   post_s: 10.0       # janela de corte depois (lance precede a reação)
 
