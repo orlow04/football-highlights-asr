@@ -9,13 +9,16 @@ Espaço de usuário, sem sudo/conda (runbook completo em §13 da documentação)
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.local/bin/env
 uv venv --python 3.11 .venv && source .venv/bin/activate
-uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 uv pip install -r requirements.txt
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# par torch+torchaudio casado POR ÚLTIMO (troque cuXXX por <= CUDA do driver: nvidia-smi)
+uv pip install --force-reinstall torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+python -c "import torch, torchaudio; print(torch.__version__, torchaudio.__version__)"
 ```
 
-As wheels `cu121` trazem o runtime CUDA — basta o driver NVIDIA, sem CUDA toolkit do
-sistema. `ffmpeg` precisa estar no PATH (build estático em `~/bin` se não houver sudo).
+As wheels `cuXXX` trazem o runtime CUDA — basta o driver NVIDIA, sem CUDA toolkit do
+sistema. **Ordem importa**: deps primeiro, torch/torchaudio por último (senão o nemo
+descasa o torchaudio → `libtorchaudio.so` não carrega; ver §13.1.1). `ffmpeg` no PATH
+(build estático em `~/bin` se não houver sudo).
 
 ## 1. Smoke-test (rode primeiro, dentro de tmux)
 

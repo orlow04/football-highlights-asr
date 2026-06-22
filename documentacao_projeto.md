@@ -64,7 +64,8 @@ A NVIDIA documenta que parte das diferenças de desempenho do v3 em português v
 
 **Verificação da model card (concluída — listagem de arquivos):**
 
-- [x] **Formato `.nemo`** — checkpoint `parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts.nemo` (2.51 GB). **Não há** `model.safetensors`/`config.json`; a inferência é **obrigatoriamente via NVIDIA NeMo** (NeMo + PyTorch + GPU). A alternativa `transformers` está descartada.
+- [x] **Formato `.nemo`** — checkpoint `parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts-pontuados-e-sintetico.nemo` (~2.51 GB; nome confirmado em runtime — o repo empacota o snapshot inteiro, com `hparams.yaml`/logs ao lado do `.nemo`). **Não há** `model.safetensors`/`config.json`; a inferência é **obrigatoriamente via NVIDIA NeMo** (NeMo + PyTorch + GPU). A alternativa `transformers` está descartada.
+  - ⚠ **Carregue com `restore_from`, não `from_pretrained`.** Como o repo traz o snapshot completo (não só o `.nemo`), o `from_pretrained` aponta a restauração para a pasta do snapshot e falha (`FileNotFoundError: model_config.yaml`). Use `hf_hub_download(model_name, model_file)` + `ASRModel.restore_from(...)` — é o que `src/asr.py` e `smoke_test.py` fazem, com o nome do arquivo em `configs/params.yaml` (`asr.model_file`). Ver §13.1.2.
 - [x] **Variante PT-BR** confirmada (`...ptbr...` no nome).
 - [x] **Dados de treino: PT-BR genérico + podcasts** (nome do checkpoint: `...ptbr-e-podcasts`). Ou seja, fala espontânea/conversacional, **sem nenhum dado de narração esportiva** — ver implicação metodológica abaixo. O `hparams.yaml` (195 kB) vale baixar para confirmar arquitetura TDT, tokenizer e lista exata de datasets (proveniência para a metodologia).
 - [ ] **Timestamps por palavra** — *ainda a confirmar em runtime.* O TDT (Token-and-Duration Transducer) prediz durações de token, então em tese suporta timestamps de palavra, mas confirme rodando `transcribe(..., timestamps=True)` e checando se `hyp[0].timestamp["word"]` vem preenchido. Se vier só `segment`, os cortes ficam com granularidade de segmento (funciona, mas a janela de corte fica menos precisa).
@@ -451,11 +452,21 @@ tmux new -s highlights          # reconectar depois: tmux attach -t highlights
 
 ### 13.1 Setup do ambiente (uma vez) — `uv` em espaço de usuário, sem sudo
 
-A 4090 é **Ada Lovelace (compute 8.9)** → o PyTorch precisa ser do índice **CUDA 12.x
-(cu121)**; cu11x cai em fallback de CPU ou erro de kernel. Importante: **isso não depende
-de conda nem de CUDA toolkit do sistema** — as wheels `cu121` já trazem o runtime CUDA
-empacotado; a máquina só precisa de um **driver NVIDIA** recente (numa box com 4090, já
-existe). Instale o torch **antes** do `requirements.txt` para fixar o índice certo.
+A 4090 é **Ada Lovelace (compute 8.9)** → o PyTorch precisa de uma wheel **CUDA 12.x ou
+13.x**; cu11x cai em fallback de CPU ou erro de kernel. Importante: **isso não depende de
+conda nem de CUDA toolkit do sistema** — as wheels `cuXXX` já trazem o runtime CUDA
+empacotado; a máquina só precisa de um **driver NVIDIA** recente (compatibilidade é "para
+baixo": um driver que suporta CUDA 13 também roda wheels 12.x). Veja o teto do driver com
+`nvidia-smi | grep "CUDA Version"` e escolha um índice `cuXXX` **≤** esse valor (ex.: cu121
+ou cu130).
+
+> **⚠ Ordem de instalação importa (pega comum).** `torch` e `torchaudio` precisam ser do
+> **mesmo build CUDA** (ex.: ambos `+cu130`); se forem de CUDAs diferentes, o `torchaudio`
+> falha ao carregar `libtorchaudio.so`. Como o `nemo_toolkit[asr]` lista `torch` como
+> dependência, instalar `-r requirements.txt` pode **sobrescrever** seu torch por uma versão
+> de outro CUDA e deixar o torchaudio descasado. Por isso a ordem abaixo é: **deps primeiro,
+> par `torch`+`torchaudio` por último** (com `--force-reinstall`, no mesmo comando/índice, pra
+> o nemo não clobberar de volta). Ver troubleshooting em §13.1.1.
 
 Sem conda e sem sudo, o caminho recomendado é **`uv`** — ele se instala em
 `~/.local/bin`, gerencia versões de Python em espaço de usuário (resolve a exigência de
@@ -471,19 +482,87 @@ cd /caminho/do/projeto           # repo já clonado
 uv venv --python 3.11 .venv
 source .venv/bin/activate
 
-# 3. PyTorch cu121 PRIMEIRO, depois o resto
-uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+# 3. Resto das deps PRIMEIRO (nemo pode puxar um torch qualquer — tudo bem, será trocado)
 uv pip install -r requirements.txt
 
-# 4. Verifique a GPU antes de seguir
+# 4. Par torch+torchaudio CASADO por ÚLTIMO, no mesmo comando e índice (--force-reinstall
+#    garante que vença o que o nemo instalou). Troque cuXXX pelo seu (≤ CUDA do driver):
+uv pip install --force-reinstall torch torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# 5. Verifique: versões casadas (mesmo +cuXXX) e GPU visível
+python -c "import torch, torchaudio; print(torch.__version__, torchaudio.__version__)"
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
-# esperado: True NVIDIA GeForce RTX 4090
+# esperado: ex. 2.x.y+cu121  2.x.y+cu121  /  True NVIDIA GeForce RTX 4090
 ```
 
 > **`venv` puro (sem uv)** funciona igual, *desde que* o `python3` do sistema seja 3.10/3.11:
 > `python3 -m venv .venv && source .venv/bin/activate && pip install --upgrade pip` e siga
 > dos passos 3 em diante com `pip` no lugar de `uv pip`. Se o sistema só tiver 3.12+, use o
 > uv (passo 2) para não depender de `apt`.
+
+#### 13.1.1 Troubleshooting — `Could not load library libtorchaudio.so`
+
+Sintoma: o `import torchaudio` (direto ou via nemo) quebra com
+`OSError: Could not load this library: .../libtorchaudio.so`. Diagnóstico:
+
+```bash
+python -c "import torch; print(torch.__version__)"      # ex.: 2.12.1+cu130
+ldd .venv/lib/python3.11/site-packages/torchaudio/lib/libtorchaudio.so | grep -i "not found"
+# se aparecer 'libcudart.so.12 => not found' mas o torch é +cu130 → builds de CUDA diferentes
+```
+
+Causa: `torch` e `torchaudio` ficaram de **builds CUDA diferentes** (tipicamente o nemo
+trocou o torch ao instalar o `requirements.txt`). Os `libtorch*.so => not found` do `ldd`
+são esperados (rpath); o sintoma real é a **major do `libcudart` não bater** com o sufixo
+`+cuXXX` do torch.
+
+Correção — reinstale o par junto, do mesmo índice, escolhendo um `cuXXX` ≤ CUDA do driver:
+
+```bash
+nvidia-smi | grep -i "CUDA Version"        # teto do driver
+uv pip install --force-reinstall torch torchaudio \
+    --index-url https://download.pytorch.org/whl/cu130   # ou cu121, conforme o driver
+python -c "import torch, torchaudio; print(torch.__version__, torchaudio.__version__)"
+```
+
+Ambos devem imprimir a mesma versão com o **mesmo** `+cuXXX`. Se o nemo exigir uma versão
+específica de torch, fixe-a (ex.: `torch==2.5.1 torchaudio==2.5.1`) no mesmo comando.
+
+#### 13.1.2 Troubleshooting — `FileNotFoundError: model_config.yaml` ao carregar o modelo
+
+Sintoma: o download do `.nemo` (~2,5 GB) completa, mas o `from_pretrained` quebra com
+`FileNotFoundError: .../<hash>/model_config.yaml` (precedido de
+`Restoration will occur within pre-extracted directory`).
+
+Causa: este repo HF **não** publica só o `.nemo` — ele empacota o **snapshot inteiro**
+(`hparams.yaml`, `.gitattributes`, `tfevents`, logs e o `.nemo`). O `from_pretrained`
+aponta a restauração para a pasta do snapshot, onde não existe `model_config.yaml` no topo,
+e falha. O `.nemo` real (`...-pontuados-e-sintetico.nemo`) está **dentro** dessa pasta, só
+não foi extraído. Limpar o cache e re-baixar **não** resolve (cai no mesmo caminho).
+
+Correção (já implementada): baixar o `.nemo` e carregar com `restore_from`, que extrai num
+diretório limpo:
+
+```python
+from huggingface_hub import hf_hub_download
+import nemo.collections.asr as nemo_asr
+
+caminho = hf_hub_download("alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus",
+                          "parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts-pontuados-e-sintetico.nemo")
+model = nemo_asr.models.ASRModel.restore_from(caminho)
+```
+
+É o que `src/asr.py` (`carregar_modelo`) e `smoke_test.py` fazem; o nome do arquivo fica em
+`configs/params.yaml` (`asr.model_file`). Para testar na hora, sobre o `.nemo` já baixado:
+
+```bash
+python - <<'PY'
+import glob, nemo.collections.asr as nemo_asr
+p = glob.glob("/home/$USER/.cache/torch/NeMo/**/*.nemo", recursive=True)[0]
+nemo_asr.models.ASRModel.restore_from(p); print("OK")
+PY
+```
 
 #### Dependências de sistema sem sudo
 

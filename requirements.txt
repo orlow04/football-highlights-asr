@@ -1,14 +1,15 @@
-# RTX 4090 (Ada Lovelace, compute 8.9) → instale o PyTorch CUDA 12.x PRIMEIRO,
-# fora deste arquivo, para garantir o índice cu121 (as wheels cu121 trazem o runtime
-# CUDA; basta o driver NVIDIA, sem conda nem CUDA toolkit do sistema).
+# RTX 4090 (Ada Lovelace, compute 8.9) → torch precisa de wheel CUDA 12.x/13.x (as wheels
+# cuXXX trazem o runtime CUDA; basta o driver NVIDIA, sem conda nem CUDA toolkit do sistema).
+# ORDEM IMPORTA: instale ESTE arquivo PRIMEIRO e o par torch+torchaudio cuXXX por ÚLTIMO,
+# senão o nemo sobrescreve o torch e descasa do torchaudio (libtorchaudio.so não carrega).
 #
-# Espaço de usuário, sem sudo (ver §13.1 da documentação):
+# Espaço de usuário, sem sudo (ver §13.1 da documentação; troque cuXXX por <= CUDA do driver):
 #   curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.local/bin/env
 #   uv venv --python 3.11 .venv && source .venv/bin/activate
-#   uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 #   uv pip install -r requirements.txt
+#   uv pip install --force-reinstall torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 #
-# Verifique: python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# Verifique: python -c "import torch, torchaudio; print(torch.__version__, torchaudio.__version__)"
 
 nemo_toolkit[asr]>=1.23
 librosa>=0.10

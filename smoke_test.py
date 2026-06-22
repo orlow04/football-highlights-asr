@@ -22,6 +22,7 @@ import wave
 from pathlib import Path
 
 MODEL = "alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus"
+MODEL_FILE = "parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts-pontuados-e-sintetico.nemo"
 
 
 def check_gpu() -> bool:
@@ -56,11 +57,15 @@ def _tom_3s(path: str, sr: int = 16000) -> None:
 def check_model_and_timestamps(audio: str | None) -> bool:
     try:
         import nemo.collections.asr as nemo_asr
+        from huggingface_hub import hf_hub_download
     except ImportError:
         print("✗ NeMo não instalado: pip install -U \"nemo_toolkit[asr]\"")
         return False
     print(f"… carregando {MODEL} (download ~2.5 GB na 1ª vez)")
-    model = nemo_asr.models.ASRModel.from_pretrained(model_name=MODEL)
+    # restore_from a partir do .nemo baixado: from_pretrained falha neste repo
+    # (empacota o snapshot inteiro e não acha model_config.yaml).
+    caminho = hf_hub_download(MODEL, MODEL_FILE)
+    model = nemo_asr.models.ASRModel.restore_from(caminho)
     print("✓ checkpoint carregado")
 
     tmp = None

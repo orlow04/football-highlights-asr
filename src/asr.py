@@ -21,9 +21,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import load_config, n_windows, normaliza  # noqa: E402
 
 
-def carregar_modelo(model_name: str):
+def carregar_modelo(model_name: str, model_file: str | None = None):
+    """Carrega o modelo NeMo.
+
+    Com `model_file`, baixa o `.nemo` do repo HF e usa `restore_from` — caminho
+    robusto. O `from_pretrained` falha neste repo porque ele empacota o snapshot
+    inteiro (hparams.yaml, logs, o .nemo) e a restauração não acha `model_config.yaml`.
+    """
     import nemo.collections.asr as nemo_asr
 
+    if model_file:
+        from huggingface_hub import hf_hub_download
+
+        caminho = hf_hub_download(model_name, model_file)
+        return nemo_asr.models.ASRModel.restore_from(caminho)
     return nemo_asr.models.ASRModel.from_pretrained(model_name=model_name)
 
 
@@ -107,7 +118,7 @@ def duracao_audio(audio_path: str) -> float:
 def run(audio_path: str, config=None, model=None) -> dict:
     cfg = load_config(config)
     if model is None:
-        model = carregar_modelo(cfg["asr"]["model_name"])
+        model = carregar_modelo(cfg["asr"]["model_name"], cfg["asr"].get("model_file"))
     trans = transcrever(model, audio_path)
     dur = duracao_audio(audio_path)
     s_kw = score_lexical(trans["word_ts"], dur, cfg)

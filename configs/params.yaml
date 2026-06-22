@@ -10,6 +10,8 @@ audio:
 
 asr:
   model_name: alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus
+  # .nemo carregado via restore_from (from_pretrained falha neste repo — ver §2.1/§13.1.2).
+  model_file: parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts-pontuados-e-sintetico.nemo
   # chunking só por velocidade; a 4090 (24 GB) roda áudio longo via local attention.
   chunk: false
   chunk_len_s: 480     # usado apenas se chunk: true
