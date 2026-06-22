@@ -449,21 +449,62 @@ tmux new -s highlights          # reconectar depois: tmux attach -t highlights
 # (Ctrl+B depois D para destacar sem matar a sessão)
 ```
 
-### 13.1 Setup do ambiente (uma vez)
+### 13.1 Setup do ambiente (uma vez) — `uv` em espaço de usuário, sem sudo
 
 A 4090 é **Ada Lovelace (compute 8.9)** → o PyTorch precisa ser do índice **CUDA 12.x
-(cu121)**; cu11x cai em fallback de CPU ou erro de kernel. Instale o torch **antes** do
-`requirements.txt` para fixar o índice certo.
+(cu121)**; cu11x cai em fallback de CPU ou erro de kernel. Importante: **isso não depende
+de conda nem de CUDA toolkit do sistema** — as wheels `cu121` já trazem o runtime CUDA
+empacotado; a máquina só precisa de um **driver NVIDIA** recente (numa box com 4090, já
+existe). Instale o torch **antes** do `requirements.txt` para fixar o índice certo.
+
+Sem conda e sem sudo, o caminho recomendado é **`uv`** — ele se instala em
+`~/.local/bin`, gerencia versões de Python em espaço de usuário (resolve a exigência de
+Python 3.10/3.11 do NeMo sem `apt`) e cria a venv:
 
 ```bash
-git clone <repo> highlights && cd highlights      # ou cd para o projeto já clonado
-conda create -n highlights python=3.10 -y && conda activate highlights
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install -r requirements.txt
-# Verifique a GPU antes de seguir:
+# 1. uv (user-space; nada de sudo)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.local/bin/env          # ou reabra o shell; confirme: uv --version
+
+# 2. Python 3.11 + venv (NeMo exige 3.10/3.11; uv baixa o interpretador isolado)
+cd /caminho/do/projeto           # repo já clonado
+uv venv --python 3.11 .venv
+source .venv/bin/activate
+
+# 3. PyTorch cu121 PRIMEIRO, depois o resto
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+uv pip install -r requirements.txt
+
+# 4. Verifique a GPU antes de seguir
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 # esperado: True NVIDIA GeForce RTX 4090
 ```
+
+> **`venv` puro (sem uv)** funciona igual, *desde que* o `python3` do sistema seja 3.10/3.11:
+> `python3 -m venv .venv && source .venv/bin/activate && pip install --upgrade pip` e siga
+> dos passos 3 em diante com `pip` no lugar de `uv pip`. Se o sistema só tiver 3.12+, use o
+> uv (passo 2) para não depender de `apt`.
+
+#### Dependências de sistema sem sudo
+
+O conda traria `ffmpeg` e `libsndfile`; sem ele:
+
+- **`libsndfile`** (usada por `soundfile`/`librosa`): a wheel de `soundfile` no PyPI **já
+  embute a lib** em Linux x86_64, então normalmente funciona sem nada extra. Só se aparecer
+  erro de carregamento da `libsndfile` é que ela precisa ser provida manualmente.
+- **`ffmpeg`** (binário chamado por `preprocess.py`): se não estiver no PATH e você não tem
+  sudo, baixe um **build estático** em espaço de usuário:
+
+  ```bash
+  mkdir -p ~/bin && cd ~/bin
+  curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJ
+  ln -sf ~/bin/ffmpeg-*-amd64-static/ffmpeg ~/bin/ffmpeg
+  export PATH="$HOME/bin:$PATH"     # adicione ao ~/.bashrc para persistir
+  which ffmpeg && ffmpeg -version
+  ```
+
+  Alternativa: se já tiver um WAV 16 kHz mono pronto, pule o `preprocess.py` e passe
+  `--audio` direto ao pipeline — aí `ffmpeg` nem é necessário.
 
 ### 13.2 Smoke-test (portão obrigatório — checklist §11.1)
 

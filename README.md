@@ -4,11 +4,18 @@ Especificação completa e protocolo experimental: [`documentacao_projeto.md`](d
 
 ## Setup (RTX 4090 — Ada Lovelace, CUDA 12.x)
 
+Espaço de usuário, sem sudo/conda (runbook completo em §13 da documentação):
+
 ```bash
-conda create -n highlights python=3.10 -y && conda activate highlights
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install -r requirements.txt
+curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.local/bin/env
+uv venv --python 3.11 .venv && source .venv/bin/activate
+uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+uv pip install -r requirements.txt
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 ```
+
+As wheels `cu121` trazem o runtime CUDA — basta o driver NVIDIA, sem CUDA toolkit do
+sistema. `ffmpeg` precisa estar no PATH (build estático em `~/bin` se não houver sudo).
 
 ## 1. Smoke-test (rode primeiro, dentro de tmux)
 
