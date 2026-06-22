@@ -1,0 +1,16 @@
+# RTX 4090 (Ada Lovelace, compute 8.9) → instale o PyTorch CUDA 12.x PRIMEIRO,
+# fora deste arquivo, para garantir o índice cu121:
+#
+#   conda create -n highlights python=3.10 -y && conda activate highlights
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements.txt
+#
+# Verifique: python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+
+nemo_toolkit[asr]>=1.23
+librosa>=0.10
+soundfile>=0.12
+scipy>=1.11
+numpy>=1.24
+jiwer>=3.0
+PyYAML>=6.0

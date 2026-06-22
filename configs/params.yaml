@@ -1,0 +1,59 @@
+# Hiperparâmetros versionados (ver §9.5 da documentação).
+# Tudo aqui é sujeito a ablação — não edite "no olho" sem registrar.
+
+seed: 42
+
+audio:
+  sample_rate: 16000   # exigido pelo Parakeet
+  window_s: 1.0        # grade temporal comum (s_kw e s_ser compartilham)
+  frame_s: 0.1         # quadro de análise do SER (100 ms)
+
+asr:
+  model_name: alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus
+  # chunking só por velocidade; a 4090 (24 GB) roda áudio longo via local attention.
+  chunk: false
+  chunk_len_s: 480     # usado apenas se chunk: true
+  chunk_overlap_s: 10
+
+# Léxico ponderado de domínio (peso = importância do evento).
+lexicon:
+  gol: 3.0
+  gooo: 3.0
+  golaco: 3.0       # normalizado sem acento; cobre "golaço"
+  penalti: 2.0      # cobre "pênalti"
+  expuls: 2.0
+  vermelho: 2.0
+  na rede: 2.5
+  balancou: 2.0     # "balançou"
+  defendeu: 1.6
+  trave: 1.6
+  travessao: 1.6    # "travessão"
+  defesa: 1.5
+  que jogada: 1.4
+  perigo: 1.3
+  chance: 1.2
+  incrivel: 1.0     # "incrível"
+
+# Mitigação de falsos positivos (negação / quase-evento).
+negators: [quase, perdeu, isolou, pra fora, por cima, anulado, impedimento, se fosse]
+negator_decay: 0.5
+negator_context_words: 3
+
+ser:
+  weights: {rms: 0.5, f0: 0.3, centroid: 0.2}
+  f0_min: 80
+  f0_max: 400
+  smooth_k: 3        # janela da média móvel (suavização)
+
+fusion:
+  alpha: 0.6         # peso do score lexical (s_kw)
+  beta: 0.4          # peso do score acústico (s_ser)
+
+detect:
+  k_sigma: 1.5       # limiar = mean + k_sigma*std
+  min_dist_s: 8      # distância mínima entre picos
+  pre_s: 5.0         # janela de corte antes do pico
+  post_s: 10.0       # janela de corte depois (lance precede a reação)
+
+evaluate:
+  tolerances_s: [5, 10, 15]
