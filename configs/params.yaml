@@ -73,9 +73,9 @@ experiments:
       - name: fine-tune
         model_name: alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus
         model_file: parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts-pontuados-e-sintetico.nemo
-      - name: base          # checkpoint multilíngue original (suporta PT); from_pretrained
+      - name: base          # checkpoint multilíngue original (suporta PT)
         model_name: nvidia/parakeet-tdt-0.6b-v3
-        model_file: null
+        model_file: parakeet-tdt-0.6b-v3.nemo   # restore_from (mesmo caminho robusto do fine-tune)
   e2:                       # grade de busca da ablação/sweep de fusão
     alpha_beta: [[0.7, 0.3], [0.6, 0.4], [0.5, 0.5], [0.3, 0.7]]
     k_sigma: [1.0, 1.5, 2.0, 2.5]
