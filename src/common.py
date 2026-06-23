@@ -34,6 +34,36 @@ def normaliza(t: str) -> str:
     return "".join(c for c in t if not unicodedata.category(c).startswith("P"))
 
 
+# Conversão dígito→extenso (PT, sem acento) para WER justo: a transcrição de
+# referência costuma escrever números por extenso ("seis", "onze") e o ASR usa
+# dígitos ("6", "11"); sem unificar, cada número vira um erro de substituição.
+_UNI = ["zero", "um", "dois", "tres", "quatro", "cinco", "seis", "sete",
+        "oito", "nove"]
+_DEZ = ["dez", "onze", "doze", "treze", "quatorze", "quinze", "dezesseis",
+        "dezessete", "dezoito", "dezenove"]
+_DEZENAS = {2: "vinte", 3: "trinta", 4: "quarenta", 5: "cinquenta",
+            6: "sessenta", 7: "setenta", 8: "oitenta", 9: "noventa"}
+
+
+def _num_extenso(n: int) -> str:
+    if n < 10:
+        return _UNI[n]
+    if n < 20:
+        return _DEZ[n - 10]
+    if n < 100:
+        d, u = divmod(n, 10)
+        return _DEZENAS[d] + (" e " + _UNI[u] if u else "")
+    return str(n)  # ≥100 (raro em narração): deixa como dígito
+
+
+def converte_numeros(texto: str) -> str:
+    """Troca dígitos 0–99 por extenso, para unificar a convenção antes do WER."""
+    import re
+
+    return re.sub(r"\d+", lambda m: _num_extenso(int(m.group()))
+                  if int(m.group()) < 100 else m.group(), texto)
+
+
 def zscore(x: np.ndarray) -> np.ndarray:
     x = np.nan_to_num(np.asarray(x, dtype=float))
     return (x - x.mean()) / (x.std() + 1e-8)

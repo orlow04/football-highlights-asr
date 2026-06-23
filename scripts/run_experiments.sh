@@ -7,9 +7,10 @@
 #   WANDB_MODE=disabled bash scripts/run_experiments.sh   # sem wandb
 set -euo pipefail
 
-AUDIO=${1:-data/pt/jogo_corte.wav}
-EVENTS=${2:-data/pt/gt_eventos.json}
-GT_TRANS=${3:-data/pt/gt_transcricao.json}
+# Dois vídeos PT por padrão (mais amostras → micro-agregação). Edite à vontade.
+AUDIOS=(data/pt/jogo_corte.wav data/pt/jogo_corte-msn.wav)
+EVENTS=(data/pt/gt_eventos.json data/pt/gt_eventos-msn.json)
+GT_TRANS=(data/pt/gt_transcricao.json data/pt/gt_transcricao-msn.json)
 
 # Mitiga fragmentação de VRAM (ver troubleshooting de OOM, §13).
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
@@ -19,9 +20,9 @@ command -v nvidia-smi >/dev/null && \
   nvidia-smi --query-gpu=memory.used,memory.free --format=csv || true
 
 echo "== E2: ablação (asr/ser/rms) + sweep α/β·k_sigma =="
-python -m src.e2_sweep --audio "$AUDIO" --events "$EVENTS" --out out/e2/
+python -m src.e2_sweep --audio "${AUDIOS[@]}" --events "${EVENTS[@]}" --out out/e2/
 
 echo "== E1: WER/CER + recall do léxico (base vs fine-tune) =="
-python -m src.e1_asr --audio "$AUDIO" --gt "$GT_TRANS" --out out/e1/
+python -m src.e1_asr --audio "${AUDIOS[@]}" --gt "${GT_TRANS[@]}" --out out/e1/
 
 echo "Pronto. Veja out/e1/ e out/e2/ (e o painel do wandb, se logado)."
