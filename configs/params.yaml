@@ -80,6 +80,24 @@ experiments:
     alpha_beta: [[0.7, 0.3], [0.6, 0.4], [0.5, 0.5], [0.3, 0.7]]
     k_sigma: [1.0, 1.5, 2.0, 2.5]
 
-# SoccerNet (fallback EN): labels de evento mantidos na conversão Labels-v2→eventos.
+# SoccerNet (Exp. 2b): detecção LÉXICA sobre transcrições Echoes (Whisper), SEM
+# áudio/SER. Valida só o mecanismo de detecção (léxico→pico→P/R/F1) com n grande
+# e GT humano, em inglês, desacoplado do ASR. Ver docs/soccernet_2b.md.
 soccernet:
+  whisper_version: whisper_v3        # qual transcrição Echoes usar
   relevant_labels: [Goal, Penalty, "Yellow card", "Red card", "Shots on target", "Shots off target"]
+  # Léxico de domínio em inglês (análogo ao PT; hiperparâmetro, sujeito a ablação).
+  lexicon_en:
+    goal: 3.0
+    scores: 2.5
+    penalty: 2.0
+    "red card": 2.0
+    "sent off": 2.0
+    save: 1.6
+    saved: 1.6
+    post: 1.6
+    crossbar: 1.6
+    header: 1.2
+    chance: 1.2
+    shot: 1.0
+  negators_en: [almost, nearly, offside, disallowed, "ruled out", wide, "over the bar", blocked]

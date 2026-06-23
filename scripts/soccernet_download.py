@@ -1,18 +1,19 @@
-"""Baixa do SoccerNet o necessário para o fallback EN (estratégia de dados, §3).
+"""Baixa do SoccerNet o necessário para o Exp. 2b (generalização do mecanismo).
 
-  - Labels-v2.json (anotações de evento): PÚBLICO, sem senha.
-  - 1_224p.mkv / 2_224p.mkv (vídeo LQ, já com áudio): requer SENHA NDA.
+Conforme docs/estrategia_validacao.md e docs/soccernet_2b.md, o 2b roda detecção
+LÉXICA sobre as transcrições Echoes — NÃO há ASR nem áudio aqui. Portanto baixa-se
+apenas dados LEVES e textuais, NÃO vídeo/áudio (centenas de GB, exige NDA, inútil):
 
-A senha NDA sai preenchendo o formulário acadêmico do SoccerNet (instantâneo).
-Sem ela, baixe só os labels e use o áudio do SoccerNet-Echoes, ou rode em outro
-jogo cujo vídeo você já tenha.
-
-Instale o cliente à parte do pin do torch:  pip install SoccerNet
+  1. Labels-v2.json  — ground-truth de evento (humano). Via cliente pip SoccerNet.
+  2. Transcrições Echoes (Whisper) — via repositório git `SoccerNet/sn-echoes`
+     (os JSONs ficam versionados em Dataset/whisper_v*/...; não passam pelo pip).
 
 Uso:
+    # 1) labels (público, sem senha)
     python scripts/soccernet_download.py --dir data/soccernet --split test
-    python scripts/soccernet_download.py --dir data/soccernet --split test \
-        --video --password SUA_SENHA_NDA
+    # 2) transcrições Echoes (clonar uma vez; é leve, só texto)
+    git clone --depth 1 https://github.com/SoccerNet/sn-echoes data/sn-echoes
+    #    → use --echoes-root data/sn-echoes/Dataset/whisper_v3 no soccernet_echoes
 """
 from __future__ import annotations
 
@@ -22,12 +23,9 @@ import sys
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dir", default="data/soccernet", help="diretório local")
+    ap.add_argument("--dir", default="data/soccernet", help="diretório dos labels")
     ap.add_argument("--split", default="test",
                     choices=["train", "valid", "test", "challenge"])
-    ap.add_argument("--video", action="store_true",
-                    help="baixar também o vídeo LQ (requer --password)")
-    ap.add_argument("--password", default=None, help="senha NDA do SoccerNet")
     args = ap.parse_args()
 
     try:
@@ -36,23 +34,17 @@ def main() -> None:
         sys.exit("Cliente não instalado. Rode: pip install SoccerNet")
 
     d = SoccerNetDownloader(LocalDirectory=args.dir)
-
     print(f"→ Labels-v2.json (público) | split={args.split}")
     d.downloadGames(files=["Labels-v2.json"], split=[args.split])
 
-    if args.video:
-        if not args.password:
-            sys.exit("--video requer --password (NDA).")
-        d.password = args.password
-        print(f"→ 1_224p.mkv / 2_224p.mkv (NDA) | split={args.split}")
-        d.downloadGames(files=["1_224p.mkv", "2_224p.mkv"], split=[args.split])
-
-    print(f"OK: dados em {args.dir}")
-    print("Próximo: extrair o áudio de uma metade e converter os labels —")
-    print("  ffmpeg -i <jogo>/1_224p.mkv -vn -ac 1 -ar 16000 -sample_fmt s16 "
-          "data/soccernet/jogo.wav")
-    print("  python scripts/soccernet_convert.py --labels <jogo>/Labels-v2.json "
-          "--half 1 --out data/soccernet/eventos.json")
+    print(f"OK: labels em {args.dir}")
+    print("\nTranscrições Echoes (texto, sem áudio) — clone o repo uma vez:")
+    print("  git clone --depth 1 https://github.com/SoccerNet/sn-echoes data/sn-echoes")
+    print("\nDepois rode o Exp. 2b (detecção léxica, sem SER):")
+    print("  python -m src.soccernet_echoes \\")
+    print("      --echoes-root data/sn-echoes/Dataset/whisper_v3 \\")
+    print(f"      --labels-root {args.dir} --half 1 --out out/e2b/")
+    print("\nNUNCA baixe vídeo/áudio para o 2b — não há ASR a rodar sobre o SoccerNet.")
 
 
 if __name__ == "__main__":
