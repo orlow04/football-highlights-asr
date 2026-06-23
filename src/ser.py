@@ -46,6 +46,23 @@ def curva_arousal(wav_path: str, cfg) -> np.ndarray:
     return suaviza(arousal_g, k=cfg["ser"]["smooth_k"])
 
 
+def curva_rms(wav_path: str, cfg) -> np.ndarray:
+    """Baseline ingênuo (§9.3): só energia RMS, sem F0/centroide — para mostrar
+    que o arousal multi-feature supera 'detectar pelo volume'."""
+    import librosa
+
+    sr = cfg["audio"]["sample_rate"]
+    janela = cfg["audio"]["window_s"]
+    frame_s = cfg["audio"]["frame_s"]
+    y, sr = librosa.load(wav_path, sr=sr)
+    hop = int(sr * frame_s)
+    rms = librosa.feature.rms(y=y, hop_length=hop)[0]
+    fator = int(janela / frame_s)
+    n = len(rms) // fator
+    g = rms[:n * fator].reshape(n, fator).mean(axis=1)
+    return zscore(g)
+
+
 def run(audio_path: str, config=None) -> dict:
     cfg = load_config(config)
     s_ser = curva_arousal(audio_path, cfg)

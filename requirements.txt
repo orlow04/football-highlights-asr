@@ -18,3 +18,7 @@ scipy>=1.11
 numpy>=1.24
 jiwer>=3.0
 PyYAML>=6.0
+
+# Opcionais p/ experimentos — instale À PARTE para não mexer no pin do torch:
+#   pip install wandb      # logging/comparação dos experimentos E1/E2 (offline-safe)
+#   pip install SoccerNet  # download do fallback EN (Labels-v2.json / vídeo LQ)

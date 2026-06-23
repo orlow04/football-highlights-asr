@@ -64,3 +64,22 @@ detect:
 
 evaluate:
   tolerances_s: [5, 10, 15]
+
+# Configuração dos experimentos (E1/E2). Tudo versionado e logado.
+experiments:
+  wandb_project: football-highlights
+  e1:                       # ASR base vs fine-tune (WER/CER + recall do léxico)
+    models:
+      - name: fine-tune
+        model_name: alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus
+        model_file: parakeet-tdt-0.6b-v3-datasets-ptbr-e-podcasts-pontuados-e-sintetico.nemo
+      - name: base          # checkpoint multilíngue original (suporta PT); from_pretrained
+        model_name: nvidia/parakeet-tdt-0.6b-v3
+        model_file: null
+  e2:                       # grade de busca da ablação/sweep de fusão
+    alpha_beta: [[0.7, 0.3], [0.6, 0.4], [0.5, 0.5], [0.3, 0.7]]
+    k_sigma: [1.0, 1.5, 2.0, 2.5]
+
+# SoccerNet (fallback EN): labels de evento mantidos na conversão Labels-v2→eventos.
+soccernet:
+  relevant_labels: [Goal, Penalty, "Yellow card", "Red card", "Shots on target", "Shots off target"]
