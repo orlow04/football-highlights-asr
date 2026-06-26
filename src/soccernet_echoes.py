@@ -59,15 +59,17 @@ def carrega_transcricao(path: str):
     return out
 
 
-def score_lexical_en(segmentos, dur, cfg) -> np.ndarray:
+def score_lexical_en(segmentos, dur, cfg, lexicon=None) -> np.ndarray:
     """Score lexical por janela de 1 s sobre os segmentos (texto contínuo).
 
     Casamento por limite de palavra (\\b) evita falsos como 'goal' em 'goalkeeper';
     chaves multi-palavra ('red card') casam por substring normalizada. Negador no
-    mesmo segmento atenua o peso (decai)."""
+    mesmo segmento atenua o peso (decai). `lexicon` (opcional) substitui o léxico
+    do config — usado pela ablação leave-one-out (calibração)."""
     janela = cfg["audio"]["window_s"]
     sn = cfg["soccernet"]
-    lex = {normaliza(k): v for k, v in sn["lexicon_en"].items()}
+    fonte = lexicon if lexicon is not None else sn["lexicon_en"]
+    lex = {normaliza(k): v for k, v in fonte.items()}
     negs = [normaliza(x) for x in sn.get("negators_en", [])]
     decai = cfg["negator_decay"]
     pats = {k: re.compile(r"\b" + re.escape(k) + r"\b") for k in lex}
@@ -143,7 +145,66 @@ def _row(escopo, k, n_ev, n_pk, counts, tols):
     return reg
 
 
-def run(echoes_root, labels_root, out_dir, half=1, config=None):
+def _f1_agregado(dados, cfg, k, lexicon, tol=10):
+    """F1@tol micro-agregado sobre todos os jogos para um dado léxico."""
+    agg = [0, 0, 0]
+    for _nome, _s, ev, segs, dur in dados:
+        s = score_lexical_en(segs, dur, cfg, lexicon=lexicon)
+        det = detecta_highlights(s, _cfg_k(cfg, k))
+        m = avalia_deteccao(det["peaks_s"], ev, tol=tol)
+        agg[0] += m["tp"]; agg[1] += m["fp"]; agg[2] += m["fn"]
+    return _prf(*agg)[2]
+
+
+def ablacao_lexico(dados, cfg, k, tol=10):
+    """Leave-one-out: remove cada termo e mede ΔF1@tol no AGREGADO.
+
+    delta > 0  → remover o termo MELHORA o F1 (candidato a corte, ex.: 'shot');
+    delta < 0  → o termo ajuda (manter);  delta ~ 0 → inerte.
+    É o procedimento de calibração do léxico EN (docs/soccernet_2b.md §7)."""
+    full = cfg["soccernet"]["lexicon_en"]
+    base = _f1_agregado(dados, cfg, k, full, tol)
+    linhas = []
+    for termo in full:
+        reduzido = {kk: vv for kk, vv in full.items() if kk != termo}
+        f = _f1_agregado(dados, cfg, k, reduzido, tol)
+        linhas.append({"removido": termo, "peso": full[termo],
+                       f"F1@{tol}_sem": round(f, 4),
+                       f"delta_F1@{tol}": round(f - base, 4)})
+    linhas.sort(key=lambda r: -r[f"delta_F1@{tol}"])
+    return round(base, 4), linhas
+
+
+def diagnostico_termos(dados, cfg, tol=10):
+    """Por termo: nº de disparos e quantos caem a ≤tol s de um evento real.
+
+    Termo 'ruidoso' = muitos disparos, poucos perto de evento (precisão baixa) →
+    fonte de FP. Complementa a ablação (vê ruído mesmo com ΔF1 ~ 0)."""
+    lex = {normaliza(orig): orig for orig in cfg["soccernet"]["lexicon_en"]}
+    pats = {k: re.compile(r"\b" + re.escape(k) + r"\b") for k in lex}
+    cont = {orig: [0, 0] for orig in cfg["soccernet"]["lexicon_en"]}
+    for _nome, _s, ev, segs, _dur in dados:
+        evs = np.array(ev) if ev else np.array([])
+        for start, _e, text in segs:
+            t = normaliza(text)
+            if not t:
+                continue
+            for k, orig in lex.items():
+                if pats[k].search(t):
+                    cont[orig][0] += 1
+                    if evs.size and float(np.min(np.abs(evs - start))) <= tol:
+                        cont[orig][1] += 1
+    linhas = []
+    for orig, (hits, perto) in cont.items():
+        prec = perto / hits if hits else 0.0
+        linhas.append({"termo": orig, "peso": cfg["soccernet"]["lexicon_en"][orig],
+                       "disparos": hits, "perto_evento": perto,
+                       "prec_aprox": round(prec, 3)})
+    linhas.sort(key=lambda r: (r["prec_aprox"], -r["disparos"]))
+    return linhas
+
+
+def run(echoes_root, labels_root, out_dir, half=1, config=None, ablate=False):
     cfg = load_config(config)
     set_seed(cfg["seed"])
     out = Path(out_dir)
@@ -168,14 +229,14 @@ def run(echoes_root, labels_root, out_dir, half=1, config=None):
             print(f"  (pulando {nome}: sem eventos relevantes)")
             continue
         dur = max([e for e in ev] + [s[1] for s in segs] + [1.0]) + 5
-        dados.append((nome, score_lexical_en(segs, dur, cfg), ev))
+        dados.append((nome, score_lexical_en(segs, dur, cfg), ev, segs, dur))
 
     resultados = []
     for k in ks:
         agg = {t: [0, 0, 0] for t in tols}
         agg_ev = agg_pk = 0
         linhas = []
-        for nome, s_kw, ev in dados:
+        for nome, s_kw, ev, _segs, _dur in dados:
             det = detecta_highlights(s_kw, _cfg_k(cfg, k))
             cnt = {}
             for t in tols:
@@ -209,6 +270,25 @@ def run(echoes_root, labels_root, out_dir, half=1, config=None):
     print(f"\nMecanismo léxico no SoccerNet ({len(dados)} jogos) — melhor "
           f"AGREGADO: k={melhor['k_sigma']} F1@10={melhor['F1@10']}")
     print(f"OK: {out/'e2b_results.csv'}  ({len(resultados)} linhas)")
+
+    if ablate:
+        kbest = melhor["k_sigma"]
+        base_f1, abl = ablacao_lexico(dados, cfg, kbest, tol=10)
+        diag = diagnostico_termos(dados, cfg, tol=10)
+        (out / "lexico_ablacao.json").write_text(
+            json.dumps({"k_sigma": kbest, "F1@10_base": base_f1,
+                        "leave_one_out": abl, "diagnostico_termos": diag},
+                       indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"\n— Calibração do léxico EN (k={kbest}, F1@10 base={base_f1}) —")
+        print("  leave-one-out (delta>0 = remover MELHORA → candidato a corte):")
+        for r in abl:
+            print(f"    {r['removido']:<12} ΔF1@10={r['delta_F1@10']:+.4f} "
+                  f"(F1 sem={r['F1@10_sem']}, peso={r['peso']})")
+        print("  disparos por termo (prec_aprox baixa + muitos disparos = ruidoso):")
+        for r in diag:
+            print(f"    {r['termo']:<12} disparos={r['disparos']:<4} "
+                  f"perto={r['perto_evento']:<3} prec≈{r['prec_aprox']}")
+        print(f"  OK: {out/'lexico_ablacao.json'}")
     return resultados
 
 
@@ -221,9 +301,11 @@ def main() -> None:
     ap.add_argument("--half", type=int, default=1, choices=[1, 2])
     ap.add_argument("--out", default="out/e2b")
     ap.add_argument("--config", default=None)
+    ap.add_argument("--ablate-lexicon", action="store_true",
+                    help="calibração: leave-one-out por termo (ΔF1) + diagnóstico de disparos")
     args = ap.parse_args()
     run(args.echoes_root, args.labels_root, args.out, half=args.half,
-        config=args.config)
+        config=args.config, ablate=args.ablate_lexicon)
 
 
 if __name__ == "__main__":
