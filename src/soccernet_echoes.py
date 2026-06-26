@@ -145,6 +145,32 @@ def _row(escopo, k, n_ev, n_pk, counts, tols):
     return reg
 
 
+def baseline_aleatorio(dados, cfg, k, tols, n_seeds=20, seed=0):
+    """Controle de acaso: mesmo nº de picos por jogo, em tempos uniformes.
+
+    F1 do léxico dividido por este baseline = quanto o mecanismo supera o acaso —
+    é o que torna o F1 absoluto (baixo, regime léxico-só sobre texto de máquina)
+    interpretável como evidência de generalização. Retorna {tol: (média, desvio)}."""
+    rng = np.random.default_rng(seed)
+    info = []
+    for _n, s_kw, ev, _segs, dur in dados:
+        det = detecta_highlights(s_kw, _cfg_k(cfg, k))
+        info.append((len(det["peaks_s"]), ev, dur))
+    acc = {t: [] for t in tols}
+    for _ in range(n_seeds):
+        agg = {t: [0, 0, 0] for t in tols}
+        for npk, ev, dur in info:
+            peaks = np.sort(rng.uniform(0, dur, size=npk))
+            for t in tols:
+                m = avalia_deteccao(list(peaks), ev, tol=t)
+                for i, key in enumerate(("tp", "fp", "fn")):
+                    agg[t][i] += m[key]
+        for t in tols:
+            acc[t].append(_prf(*agg[t])[2])
+    return {t: (round(float(np.mean(acc[t])), 4), round(float(np.std(acc[t])), 4))
+            for t in tols}
+
+
 def _f1_agregado(dados, cfg, k, lexicon, tol=10):
     """F1@tol micro-agregado sobre todos os jogos para um dado léxico."""
     agg = [0, 0, 0]
@@ -222,14 +248,26 @@ def run(echoes_root, labels_root, out_dir, half=1, config=None, ablate=False):
 
     # s_kw não depende de k_sigma → computa uma vez por jogo
     dados = []
+    n_corrompidos = 0
     for asr_path, labels_path, nome in jogos:
-        segs = carrega_transcricao(asr_path)
-        ev = carrega_labels(labels_path, half, sn["relevant_labels"])
+        try:
+            segs = carrega_transcricao(asr_path)
+            ev = carrega_labels(labels_path, half, sn["relevant_labels"])
+        except (json.JSONDecodeError, OSError, ValueError) as e:
+            n_corrompidos += 1
+            print(f"  (pulando {nome}: JSON inválido/incompleto — {type(e).__name__})")
+            continue
         if not ev:
             print(f"  (pulando {nome}: sem eventos relevantes)")
             continue
         dur = max([e for e in ev] + [s[1] for s in segs] + [1.0]) + 5
         dados.append((nome, score_lexical_en(segs, dur, cfg), ev, segs, dur))
+
+    if n_corrompidos:
+        print(f"  (! {n_corrompidos} jogo(s) pulado(s) por JSON incompleto — "
+              f"provável download em andamento; re-rode após concluir)")
+    if not dados:
+        sys.exit("Nenhum jogo válido com eventos relevantes — aborte.")
 
     resultados = []
     for k in ks:
@@ -270,6 +308,17 @@ def run(echoes_root, labels_root, out_dir, half=1, config=None, ablate=False):
     print(f"\nMecanismo léxico no SoccerNet ({len(dados)} jogos) — melhor "
           f"AGREGADO: k={melhor['k_sigma']} F1@10={melhor['F1@10']}")
     print(f"OK: {out/'e2b_results.csv'}  ({len(resultados)} linhas)")
+
+    # Controle de acaso (torna o F1 absoluto interpretável).
+    rand = baseline_aleatorio(dados, cfg, melhor["k_sigma"], tols)
+    rm10, rs10 = rand[10]
+    ganho = (melhor["F1@10"] / rm10) if rm10 else float("nan")
+    (out / "baseline_aleatorio.json").write_text(
+        json.dumps({"k_sigma": melhor["k_sigma"], "F1_lexico": melhor["F1@10"],
+                    "F1_aleatorio": {str(t): rand[t] for t in tols},
+                    "ganho_F1@10": round(ganho, 2)}, indent=2), encoding="utf-8")
+    print(f"  baseline ALEATÓRIO F1@10={rm10}±{rs10}  →  léxico é {ganho:.2f}× o acaso")
+    print(f"  OK: {out/'baseline_aleatorio.json'}")
 
     if ablate:
         kbest = melhor["k_sigma"]
