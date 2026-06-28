@@ -1,0 +1,7 @@
+modelo,model_name,escopo,wer,cer,lexico_recall,lexico_total,lexico_acertos
+fine-tune,alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus,jogo_corte-unificada,0.2339,0.1767,0.75,4,3
+fine-tune,alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus,jogo_corte-msn,0.625,0.4294,0.8,5,4
+fine-tune,alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus,AGREGADO,0.5062,0.3559,0.7777777777777778,9,7
+base,nvidia/parakeet-tdt-0.6b-v3,jogo_corte-unificada,0.2047,0.1454,0.75,4,3
+base,nvidia/parakeet-tdt-0.6b-v3,jogo_corte-msn,0.6122,0.4299,0.8,5,4
+base,nvidia/parakeet-tdt-0.6b-v3,AGREGADO,0.4885,0.3471,0.7777777777777778,9,7

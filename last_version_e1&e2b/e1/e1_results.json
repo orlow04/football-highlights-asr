@@ -1,0 +1,62 @@
+[
+  {
+    "modelo": "fine-tune",
+    "model_name": "alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus",
+    "escopo": "jogo_corte-unificada",
+    "wer": 0.2339,
+    "cer": 0.1767,
+    "lexico_recall": 0.75,
+    "lexico_total": 4,
+    "lexico_acertos": 3
+  },
+  {
+    "modelo": "fine-tune",
+    "model_name": "alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus",
+    "escopo": "jogo_corte-msn",
+    "wer": 0.625,
+    "cer": 0.4294,
+    "lexico_recall": 0.8,
+    "lexico_total": 5,
+    "lexico_acertos": 4
+  },
+  {
+    "modelo": "fine-tune",
+    "model_name": "alexandreacff/parakeet-tdt-0.6b-v3-ptBR-plus",
+    "escopo": "AGREGADO",
+    "wer": 0.5062,
+    "cer": 0.3559,
+    "lexico_recall": 0.7777777777777778,
+    "lexico_total": 9,
+    "lexico_acertos": 7
+  },
+  {
+    "modelo": "base",
+    "model_name": "nvidia/parakeet-tdt-0.6b-v3",
+    "escopo": "jogo_corte-unificada",
+    "wer": 0.2047,
+    "cer": 0.1454,
+    "lexico_recall": 0.75,
+    "lexico_total": 4,
+    "lexico_acertos": 3
+  },
+  {
+    "modelo": "base",
+    "model_name": "nvidia/parakeet-tdt-0.6b-v3",
+    "escopo": "jogo_corte-msn",
+    "wer": 0.6122,
+    "cer": 0.4299,
+    "lexico_recall": 0.8,
+    "lexico_total": 5,
+    "lexico_acertos": 4
+  },
+  {
+    "modelo": "base",
+    "model_name": "nvidia/parakeet-tdt-0.6b-v3",
+    "escopo": "AGREGADO",
+    "wer": 0.4885,
+    "cer": 0.3471,
+    "lexico_recall": 0.7777777777777778,
+    "lexico_total": 9,
+    "lexico_acertos": 7
+  }
+]

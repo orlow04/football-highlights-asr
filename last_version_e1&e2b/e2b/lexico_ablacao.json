@@ -1,0 +1,164 @@
+{
+  "k_sigma": 1.0,
+  "F1@10_base": 0.1256,
+  "leave_one_out": [
+    {
+      "removido": "sent off",
+      "peso": 2.0,
+      "F1@10_sem": 0.1256,
+      "delta_F1@10": 0.0
+    },
+    {
+      "removido": "red card",
+      "peso": 2.0,
+      "F1@10_sem": 0.1255,
+      "delta_F1@10": -0.0001
+    },
+    {
+      "removido": "saved",
+      "peso": 1.6,
+      "F1@10_sem": 0.1249,
+      "delta_F1@10": -0.0007
+    },
+    {
+      "removido": "scores",
+      "peso": 2.5,
+      "F1@10_sem": 0.1248,
+      "delta_F1@10": -0.0008
+    },
+    {
+      "removido": "crossbar",
+      "peso": 1.6,
+      "F1@10_sem": 0.124,
+      "delta_F1@10": -0.0016
+    },
+    {
+      "removido": "penalty",
+      "peso": 2.0,
+      "F1@10_sem": 0.1236,
+      "delta_F1@10": -0.002
+    },
+    {
+      "removido": "header",
+      "peso": 1.2,
+      "F1@10_sem": 0.1236,
+      "delta_F1@10": -0.002
+    },
+    {
+      "removido": "save",
+      "peso": 1.6,
+      "F1@10_sem": 0.1206,
+      "delta_F1@10": -0.005
+    },
+    {
+      "removido": "post",
+      "peso": 1.6,
+      "F1@10_sem": 0.1198,
+      "delta_F1@10": -0.0058
+    },
+    {
+      "removido": "goal",
+      "peso": 3.0,
+      "F1@10_sem": 0.1159,
+      "delta_F1@10": -0.0097
+    },
+    {
+      "removido": "shot",
+      "peso": 1.0,
+      "F1@10_sem": 0.1123,
+      "delta_F1@10": -0.0133
+    },
+    {
+      "removido": "chance",
+      "peso": 1.2,
+      "F1@10_sem": 0.1075,
+      "delta_F1@10": -0.0182
+    }
+  ],
+  "diagnostico_termos": [
+    {
+      "termo": "penalty",
+      "peso": 2.0,
+      "disparos": 556,
+      "perto_evento": 61,
+      "prec_aprox": 0.11
+    },
+    {
+      "termo": "goal",
+      "peso": 3.0,
+      "disparos": 2344,
+      "perto_evento": 265,
+      "prec_aprox": 0.113
+    },
+    {
+      "termo": "sent off",
+      "peso": 2.0,
+      "disparos": 44,
+      "perto_evento": 5,
+      "prec_aprox": 0.114
+    },
+    {
+      "termo": "red card",
+      "peso": 2.0,
+      "disparos": 35,
+      "perto_evento": 4,
+      "prec_aprox": 0.114
+    },
+    {
+      "termo": "header",
+      "peso": 1.2,
+      "disparos": 439,
+      "perto_evento": 62,
+      "prec_aprox": 0.141
+    },
+    {
+      "termo": "chance",
+      "peso": 1.2,
+      "disparos": 1151,
+      "perto_evento": 207,
+      "prec_aprox": 0.18
+    },
+    {
+      "termo": "post",
+      "peso": 1.6,
+      "disparos": 423,
+      "perto_evento": 80,
+      "prec_aprox": 0.189
+    },
+    {
+      "termo": "shot",
+      "peso": 1.0,
+      "disparos": 772,
+      "perto_evento": 182,
+      "prec_aprox": 0.236
+    },
+    {
+      "termo": "save",
+      "peso": 1.6,
+      "disparos": 289,
+      "perto_evento": 78,
+      "prec_aprox": 0.27
+    },
+    {
+      "termo": "scores",
+      "peso": 2.5,
+      "disparos": 51,
+      "perto_evento": 14,
+      "prec_aprox": 0.275
+    },
+    {
+      "termo": "saved",
+      "peso": 1.6,
+      "disparos": 41,
+      "perto_evento": 15,
+      "prec_aprox": 0.366
+    },
+    {
+      "termo": "crossbar",
+      "peso": 1.6,
+      "disparos": 31,
+      "perto_evento": 15,
+      "prec_aprox": 0.484
+    }
+  ]
+}
