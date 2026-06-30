@@ -8,9 +8,9 @@
 set -euo pipefail
 
 # Dois vídeos PT por padrão (mais amostras → micro-agregação). Edite à vontade.
-AUDIOS=(data/pt/jogo_corte.wav data/pt/jogo_corte-msn.wav)
-EVENTS=(data/pt/gt_eventos.json data/pt/gt_eventos-msn.json)
-GT_TRANS=(data/pt/gt_transcricao.json data/pt/gt_transcricao-msn.json)
+AUDIOS=(data/pt/jogo_corte-unificada.wav data/pt/jogo_corte-msn.wav)
+EVENTS=(data/pt/gt_eventos-unificada.json data/pt/gt_eventos-msn.json)
+GT_TRANS=(data/pt/gt_transcricao-unificada.json data/pt/gt_transcricao-msn.json)
 
 # Mitiga fragmentação de VRAM (ver troubleshooting de OOM, §13).
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
